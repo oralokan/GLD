@@ -5,61 +5,85 @@
 
 #Based on the algorithm by Dr. Canan Gunes Corlu and Dr. Bahar Biller
 
-"gld.fit.bay" <- function(data, tolerance=1, loc_int=c(-1,1), scal_int=c(0.001, 1), shap_int1=c(-2,2), shap_int2=c(-2,2), max_iter=10000){
+"gld.fit.bay" <- function(data, tolerance=50, a=c(-1,0.001,-2,-2), b=c(1,1,2,2), s=c(0.1,0.1,0.1,0.1), K=10000){
 	
 	#This is the main method in which the Bayesian Method Algorithm developed by Dr. Corlu and Dr. Biller is implemented.
 
 	#	data		-	a set of data on which the GLD fitting will be done
 	#	tolerance	-	fitness function 
-	#	loc_int		-	interval for location parameter
-	#	scal_int	-	interval for scale parameter
-	#	shap_int	-	interval for first shape parameter
-	#	shap_int2	-	interval for second shape parameter
-	#	max_iter	-	max number of iterations allowed
+	#	a			-	lower bounds for parameters
+	#	b			-	upper bounds for parameters
+	#	s			-	std dev for norm
+	#	K			-	max number of iterations
 
 	data	<- 	sort(data)
 	n		<-	length(data)
 
-	iter		<-	0
-	sol.found	<-	FALSE
+	init_sol.found	<- FALSE
 
-	#The initial solution is arbitrarily defined with a large fitness value. The format is [1, 2, 3, 4, 9999] where the first four values correspond to parameter values and the last is the fitness value that results.
+	while(!init_sol.found){
 
-	sol		<-	c(1:4)
-	sol		<- c(sol, 9999)
-
-
-	#This is the main loop that iterates until a solution is found (fitness is smaller than tolerance), or the maximum number of iterations has been reached
-	while(iter < max_iter && !sol.found){
-		
 		#First, a set of parameters is generated uniformly from the given parameter intervals.
-		p <- c( runif(1, loc_int[1], loc_int[2]),
-				runif(1, scal_int[1], scal_int[2]),
-				runif(1, shap_int1[1], shap_int1[2]),
-				runif(1, shap_int2[1], shap_int2[2]) )
+		p <- c( runif(1, a[1], b[1]),
+				runif(1, a[2], b[2]),
+				runif(1, a[3], b[3]),
+				runif(1, a[4], b[4]) )
 
-		
+
 		#This set of parameters is used to simulate a set of random values from a GLD distribution that has these parameters.
 		d <- gld.fit.bay.rgld(n, p[1], p[2], p[3], p[4])
 		d <- sort(d)
 
 		#The original data is compared to the simulated data to determine a fitness value.
-		t <- gld.fit.bay.fitness(data, d)
+		fit <- gld.fit.bay.fitness(data, d)
 
-		#If the current fitness value is better than that of the incumbent solution, the current solution become the new incumbent solution.
-		if(t < sol[5]){
-			sol <- c(p, t)
+		if(fit < tolerance){
+			init_sol.found <- TRUE
 
-			#If the current solution has just becom the incumbent solution, it is tested to see whether its fitness is better than the tolerance parameter.
-			if(t < tolerance){
-				sol.found <- TRUE
-			}
+			#Note that since the while loop will not iterate again, the final value of 'p' is our initial solution.
 		}
-		iter <- iter + 1
 	}
 
-	#The parameter values of the solution are returned (the fitness value is truncated)
-	return(sol[1:4])
+	#Now we initialize the matrix that will hold the iterations and insert the initial solution
+	iter <- matrix(0, K+1, 4)
+	iter[1,] <- p
+
+	# MAIN ALGORITHM
+
+	count <- 2
+
+	while(count < K+2){
+		iter[count,] <- c( rnorm(1,iter[count-1,1], s[1]*s[1]) , rnorm(1,iter[count-1,2], s[2]*s[2]) , rnorm(1,iter[count-1,3], s[3]*s[3]) , rnorm(1,iter[count-1,4], s[4]*s[4]) )
+
+		#Truncating
+		for(j in 1:4){
+			if(iter[count,j] < a[j]) iter[count,j] <- a[j]
+			else if(iter[count,j] > b[j]) iter[count,j] <- b[j]
+		}
+
+		d <- gld.fit.bay.rgld(n, iter[count, 1], iter[count, 2], iter[count, 3], iter[count, 4])
+		d <- sort(d)
+
+		u <- runif(1)
+
+		proceed <- TRUE
+
+		for(j in 1:4){
+			t <- (runif(1, a[j], b[j]) * iter[count,j]   * rnorm(1, iter[count-1,j], s[j]*s[j])) /
+				( runif(1, a[j], b[j]) * iter[count-1,j] * rnorm(1, iter[count,j], s[j]*s[j]))
+
+			if (u > t) proceed <- FALSE
+		}
+
+		fit <- gld.fit.bay.fitness(data, d)
+
+		if(fit > tolerance) proceed <- FALSE
+
+		if(proceed) count <- count + 1
+	}
+
+	#replace this with return(iter[K+1, ]) to get actual estimate
+	return(iter)
 }
 
 "gld.fit.bay.rgld" <- function(n, lam_1, lam_2, lam_3, lam_4){
