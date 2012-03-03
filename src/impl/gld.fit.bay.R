@@ -20,6 +20,9 @@
 	n		<-	length(data)
 
 	init_sol.found	<- FALSE
+	count <- 0
+
+	print("INITIAL ALGORITHM STARTED") ###
 
 	while(!init_sol.found){
 
@@ -42,6 +45,9 @@
 
 			#Note that since the while loop will not iterate again, the final value of 'p' is our initial solution.
 		}
+
+		count <- count + 1 ###
+		print(p) ###
 	}
 
 	#Now we initialize the matrix that will hold the iterations and insert the initial solution
@@ -49,6 +55,8 @@
 	iter[1,] <- p
 
 	# MAIN ALGORITHM
+
+	print("MAIN ALGORITHM STARTED") ###
 
 	count <- 2
 
@@ -79,11 +87,15 @@
 
 		if(fit > tolerance) proceed <- FALSE
 
-		if(proceed) count <- count + 1
+		if(proceed){
+			print(iter[count, ])
+			count <- count + 1
+		}
+		
+		else print(count)
 	}
 
-	#replace this with return(iter[K+1, ]) to get actual estimate
-	return(iter)
+	return(iter[K+1, ])
 }
 
 "gld.fit.bay.rgld" <- function(n, lam_1, lam_2, lam_3, lam_4){
